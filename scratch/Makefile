@@ -11,7 +11,7 @@ include ${DEVKITARM}/gba_rules
 # --------------------------------------------------------------------------------------------------
 
 OUTPUT = scratch
-OFILES = scratch.o
+OFILES = scratch.o white-all.o
 
 INCLUDE = -I${LIBGBA}/include
 OPTIMISE = -fomit-frame-pointer -ffast-math
