@@ -10,7 +10,7 @@
 
 #define PUZZLE_BG_IDX 1
 #define CHAR_BASE_IDX 0
-#define MAP_BASE_IDX 31
+#define MAP_BASE_IDX 28
 
 #define NUM_Y_BG_TILES 32               // 32 8x8 tiles in bg quadrant row.
 #define NUM_Y_MAP_TILES 8               // 8 8x8 tiles in our tile set row.
@@ -248,12 +248,23 @@ static const u16 c_dirs_piece_map[16] = {
 
 // NOTE: We write directly to VRAM and should only be attempted during v-blank.
 
+// The entire 512x512px backround is made up of 64x64 tiles, each being 8x8px.
+// We need 4 screen blocks, which are only 2KB each, or 32x32 = 1024 tiles, 16bit entries = 2KB.
+// The screen blocks are:
+//   0 | 1
+//   --+--
+//   2 | 3
+// so we need to work that out when determining how to write a puzzle piece.
+//
+// x, y below are *piece* coords, each piece is 2x2 tiles.
+
 static void update_puzzle_board(s32 x, s32 y) {
   u16 piece_tiles_idx = c_dirs_piece_map[PUZZLE_DIRS_AT(x, y)];
 
-  u16* tilemap_block = SCREEN_BASE_BLOCK(MAP_BASE_IDX);
-  // XXX This doesn't take the 4 quadrants into account yet...
-  s32 tilemap_idx = y * 2 * NUM_Y_BG_TILES + x * 2;
+  // I'm hoping the compiler makes this much more efficient.  I should check the ASM.
+  s32 scr_blk_idx = (y * 2) / NUM_Y_BG_TILES * 2 + (x * 2) / NUM_Y_BG_TILES;
+  u16* tilemap_block = SCREEN_BASE_BLOCK(MAP_BASE_IDX + scr_blk_idx);
+  s32 tilemap_idx = ((y * 2) % NUM_Y_BG_TILES) * NUM_Y_BG_TILES + ((x * 2) % NUM_Y_BG_TILES);
 
   tilemap_block[tilemap_idx + 0] = piece_tiles_idx + 0;
   tilemap_block[tilemap_idx + 1] = piece_tiles_idx + 1;
@@ -299,8 +310,14 @@ int main() {
 
   init_gfx();
 
-  s32 width = 15;
-  s32 height = 10;
+  // Small = 1 screen = 15x10
+  // Medium = middle = 24x24
+  // Large = entire bg = 32x32
+  s32 width = 32;
+  s32 height = 32;
+
+  u16 scroll_x = 0;
+  u16 scroll_y = 0;
 
   s32 initialised = 0;
   while (1) {
@@ -329,6 +346,21 @@ int main() {
       break;
     }
 
+    if (keys_up & KEY_UP) {
+      scroll_y -= 32;
+    }
+    if (keys_up & KEY_DOWN) {
+      scroll_y += 32;
+    }
+    if (keys_up & KEY_LEFT) {
+      scroll_x -= 32;
+    }
+    if (keys_up & KEY_RIGHT) {
+      scroll_x += 32;
+    }
+
+    REG_BG1HOFS = scroll_x;
+    REG_BG1VOFS = scroll_y;
   }
 
   Stop();
