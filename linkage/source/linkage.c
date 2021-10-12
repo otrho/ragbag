@@ -267,6 +267,69 @@ static void update_puzzle_board(s32 x, s32 y) {
 }
 
 // -------------------------------------------------------------------------------------------------
+// dir must be +1 (clockwise) or -1 (anticlockwise).
+
+static const u16 c_dirs_clockwise_map[16] = {
+  0,                            // 0 = no dirs
+  kEast,                        // 1 = north -> east
+  kSouth,                       // 2 = east -> south
+  kEast|kSouth,                 // 3 = north|east -> east|south
+  kWest,                        // 4 = south -> west
+  kEast|kWest,                  // 5 = north|south -> east|west
+  kSouth|kWest,                 // 6 = east|south -> south|west
+  kEast|kSouth|kWest,           // 7 = north|east|south -> east|south|west
+  kNorth,                       // 8 = west -> north
+  kNorth|kEast,                 // 9 = north|west -> north|east
+  kNorth|kSouth,                // 10 = east|west -> north|south
+  kNorth|kEast|kSouth,          // 11 = north|east|west -> north|east|south
+  kNorth|kWest,                 // 12 = south|west -> north|west
+  kNorth|kEast|kWest,           // 13 = north|south|west -> north|east|west
+  kNorth|kSouth|kWest,          // 14 = east|south|west -> north|south|west
+  kNorth|kEast|kSouth|kWest,    // 15 = north|east|south|west -> no rotation
+};
+
+static const u16 c_dirs_anticlockwise_map[16] = {
+  0,                            // 0 = no dirs
+  kWest,                        // 1 = north -> west
+  kNorth,                       // 2 = east -> north
+  kNorth|kWest,                 // 3 = north|east -> north|west
+  kEast,                        // 4 = south -> east
+  kEast|kWest,                  // 5 = north|south -> east|west
+  kNorth|kEast,                 // 6 = east|south -> north|east
+  kNorth|kEast|kWest,           // 7 = north|east|south -> north|east|west
+  kSouth,                       // 8 = west -> south
+  kSouth|kWest,                 // 9 = north|west -> south|west
+  kNorth|kSouth,                // 10 = east|west -> north|south
+  kNorth|kSouth|kWest,          // 11 = north|east|west -> north|south|west
+  kEast|kSouth,                 // 12 = south|west -> east|south
+  kEast|kSouth|kWest,           // 13 = north|south|west -> east|south|west
+  kNorth|kEast|kSouth,          // 14 = east|south|west -> north|east|south
+  kNorth|kEast|kSouth|kWest,    // 15 = north|east|south|west -> no rotation
+};
+
+static void rotate_piece(s32 x, s32 y, s32 dir) {
+  struct Piece* piece = PUZZLE_PIECE_AT(x, y);
+
+  if (piece->dirs == (kNorth | kEast | kSouth | kWest)) {
+    // Do nothing, can't rotate the cross.
+    return;
+  }
+
+  if (piece->dirs == (kNorth | kSouth) || piece->dirs == (kEast | kWest)) {
+    // Straight line is symmetrical and can toggle rotation between 0 and 1.
+    piece->rot ^= 1;
+  } else {
+    piece->rot = (piece->rot + dir) & 3;
+  }
+
+  if (dir == 1) {
+    piece->dirs = c_dirs_clockwise_map[piece->dirs];
+  } else {
+    piece->dirs = c_dirs_anticlockwise_map[piece->dirs];
+  }
+}
+
+// -------------------------------------------------------------------------------------------------
 
 static OBJATTR g_shadow_cursor_attrs[4];
 
@@ -407,10 +470,10 @@ static void init_gfx() {
 #define SCREEN_MAX_HEIGHT 10
 
 struct CursorScroll {
-  // These are mutable state.
+  // These are mutable state, all in the pieces coordinates, not pixels.
   s32 cursor_x, cursor_y;
   s32 cursor_screen_x, cursor_screen_y;
-  s32 puzzle_scroll_x, puzzle_scroll_y;                 // In pieces, not pixels.
+  s32 puzzle_scroll_x, puzzle_scroll_y;
 
   // These are const.
   s32 puzzle_max_scroll_x, puzzle_max_scroll_y;
@@ -419,7 +482,7 @@ struct CursorScroll {
 };
 
 static void init_cursor_scroll(struct CursorScroll* cursor_scroll,
-                        s32 width, s32 height, s32 origin_x, s32 origin_y) {
+                               s32 width, s32 height, s32 origin_x, s32 origin_y) {
   cursor_scroll->cursor_x = 0; cursor_scroll->cursor_y = 0;
   cursor_scroll->cursor_screen_x = 0; cursor_scroll->cursor_screen_y = 0;
   cursor_scroll->puzzle_scroll_x = 0; cursor_scroll->puzzle_scroll_y = 0;
@@ -527,9 +590,20 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
       cursor_right(cursor_scroll);
     }
 
+    if (keys_up & KEY_A) {
+      rotate_piece(cursor_scroll->cursor_x, cursor_scroll->cursor_y, -1);
+      update_puzzle_board(cursor_scroll->cursor_x, cursor_scroll->cursor_y);
+    }
+    if (keys_up & KEY_B) {
+      rotate_piece(cursor_scroll->cursor_x, cursor_scroll->cursor_y, +1);
+    }
+
     VBlankIntrWait();
     if (keys_up & (KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT)) {
       update_screen_cursor_scroll(cursor_scroll);
+    }
+    if (keys_up & (KEY_A | KEY_B)) {
+      update_puzzle_board(cursor_scroll->cursor_x, cursor_scroll->cursor_y);
     }
   }
 }
