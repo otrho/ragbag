@@ -321,7 +321,8 @@ static void init_puzzle_bg() {
 
   // Load the tile image data.
   CpuFastSet(white_allTiles, CHAR_BASE_ADR(CHAR_BASE_IDX), 512 | COPY32);
-  CpuFastSet(white_allPal, BG_PALETTE, 8 | COPY16);
+  BG_PALETTE[0] = RGB5(0x0, 0x0, 0x0);
+  BG_PALETTE[1] = RGB5(0x0f, 0x0f, 0x0f);
 
   // Make sure scroll is at the top left.
   REG_BG1HOFS = 0;
