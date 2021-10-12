@@ -21,21 +21,19 @@
 
 // -------------------------------------------------------------------------------------------------
 // Puzzle board is always 32x32 (1024) pieces, even if the puzzle itself is smaller than that.
-//
-// Each piece is a u16.
-//
-// +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-// | f | e | d | c | b | a | 9 | 8 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
-// +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
-// |                                   | l | rot   | dirs          |
-// +-----------------------------------+---+-------+---------------+
-//  * l = Is piece linked?
-//  * We assume that the dirs are in the bottom of the value so we can easily bit-or them in or out.
 
-static u16 g_puzzle_pieces[1024];
+#define TOTAL_PIECE_COUNT 1024
+
+struct Piece {
+  u16 dirs;
+  u8 rot;
+  u8 is_linked;
+};
+
+static struct Piece g_puzzle_pieces[TOTAL_PIECE_COUNT];
 
 #define PUZZLE_WIDTH 32
-#define PUZZLE_DIRS_AT(x, y) (g_puzzle_pieces[(y) * PUZZLE_WIDTH + (x)] & 0xf)
+#define PUZZLE_PIECE_AT(x, y) (g_puzzle_pieces + (y) * PUZZLE_WIDTH + (x))
 
 enum Direction {
   kNorth = 1,
@@ -64,19 +62,10 @@ enum Direction opposite_dir(enum Direction dir) {
 }
 
 // -------------------------------------------------------------------------------------------------
-
-//static void set_piece(s32 x, s32 y,
-//                      s32 directions,
-//                      s32 rotation, s32 is_linked) {
-//  s32 piece = (directions << 0) | (rotation << 4) | (is_linked << 6);
-//  g_puzzle_pieces[y * 32 + x] = (u16)(piece & 0xffff);
-//}
-
-// -------------------------------------------------------------------------------------------------
 // A 4KB buffer for tracking where the current ends of the expansion are.  Can push to the top, pop
 // off the top or bottom.
 
-static s32 g_links[1024];
+static s32 g_links[TOTAL_PIECE_COUNT];
 static s32 g_links_top;
 static s32 g_links_bot;
 
@@ -123,14 +112,16 @@ s32 extend(s32 width, s32 height, s32 src_x, s32 src_y, enum Direction dir, s32*
     // Out of bounds.
     return 0;
   }
-  if (PUZZLE_DIRS_AT(*dst_x, *dst_y) != 0) {
+
+  struct Piece* dst_piece = PUZZLE_PIECE_AT(*dst_x, *dst_y);
+  if (dst_piece->dirs != 0) {
     // Piece in that direction is not empty.
     return 0;
   }
 
   // Extend the link.
-  g_puzzle_pieces[src_y * PUZZLE_WIDTH + src_x] |= dir;
-  g_puzzle_pieces[*dst_y * PUZZLE_WIDTH + *dst_x] |= opposite_dir(dir);
+  PUZZLE_PIECE_AT(src_x, src_y)->dirs |= dir;
+  dst_piece->dirs |= opposite_dir(dir);
 
   return 1;
 }
@@ -143,7 +134,7 @@ s32 extend(s32 width, s32 height, s32 src_x, s32 src_y, enum Direction dir, s32*
 void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
   // Clear the puzzle.
   s32 null = 0;
-  CpuFastSet(&null, g_puzzle_pieces, (1024 / 2) | FILL | COPY32);
+  CpuFastSet(&null, g_puzzle_pieces, (sizeof (struct Piece) * TOTAL_PIECE_COUNT / 4) | FILL | COPY32);
 
   // Set the origin to somewhere random, at least 2 pieces from the edge.
   *origin_x = (random() % (width - 4)) + 2;
@@ -179,7 +170,7 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
 
     // We want a maximum of 3 branches.
     s32 extended = 0;
-    if (num_links(PUZZLE_DIRS_AT(x, y)) < 3) {
+    if (num_links(PUZZLE_PIECE_AT(x, y)->dirs) < 3) {
       // Keep looping until we find extend successfully.
       for (s32 attempted_dirs = 0; num_links(attempted_dirs) < 4; ) {
         enum Direction next_dir = (kNorth << (random() % 4));
@@ -262,7 +253,7 @@ static const u16 c_dirs_piece_map[16] = {
 // x, y below are *piece* coords, each piece is 2x2 tiles.
 
 static void update_puzzle_board(s32 x, s32 y) {
-  u16 piece_tiles_idx = c_dirs_piece_map[PUZZLE_DIRS_AT(x, y)];
+  u16 piece_tiles_idx = c_dirs_piece_map[PUZZLE_PIECE_AT(x, y)->dirs];
 
   // I'm hoping the compiler makes this much more efficient.  I should check the ASM.
   s32 scr_blk_idx = (y * 2) / NUM_Y_BG_TILES * 2 + (x * 2) / NUM_Y_BG_TILES;
