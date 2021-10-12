@@ -4,6 +4,10 @@
 
 #include "white-all.h"
 
+// Wacky XOR method for min/max.  Better than a ternary op?
+#define min(a, b) ((b) ^ (((a) ^ (b)) & -((a) < (b))))
+#define max(a, b) ((a) ^ (((a) ^ (b)) & -((a) < (b))))
+
 // -------------------------------------------------------------------------------------------------
 // Use BG1 for the puzzle tiles.  Load the tile data to the first character block, use the last
 // screen block for the tilemap.
@@ -205,7 +209,6 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
       }
     }
   }
-
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -274,6 +277,44 @@ static void update_puzzle_board(s32 x, s32 y) {
 
 // -------------------------------------------------------------------------------------------------
 
+static OBJATTR g_shadow_cursor_attrs[4];
+
+static void move_cursor(u16 x, u16 y) {
+  x *= 16;
+  y *= 16;
+
+  g_shadow_cursor_attrs[0].attr0 = (g_shadow_cursor_attrs[0].attr0 & 0xff00) | OBJ_Y(y + 0);
+  g_shadow_cursor_attrs[0].attr1 = (g_shadow_cursor_attrs[0].attr1 & 0xfe00) | OBJ_X(x + 0);
+  g_shadow_cursor_attrs[1].attr0 = (g_shadow_cursor_attrs[1].attr0 & 0xff00) | OBJ_Y(y + 0);
+  g_shadow_cursor_attrs[1].attr1 = (g_shadow_cursor_attrs[1].attr1 & 0xfe00) | OBJ_X(x + 8);
+  g_shadow_cursor_attrs[2].attr0 = (g_shadow_cursor_attrs[2].attr0 & 0xff00) | OBJ_Y(y + 8);
+  g_shadow_cursor_attrs[2].attr1 = (g_shadow_cursor_attrs[2].attr1 & 0xfe00) | OBJ_X(x + 0);
+  g_shadow_cursor_attrs[3].attr0 = (g_shadow_cursor_attrs[3].attr0 & 0xff00) | OBJ_Y(y + 8);
+  g_shadow_cursor_attrs[3].attr1 = (g_shadow_cursor_attrs[3].attr1 & 0xfe00) | OBJ_X(x + 8);
+}
+
+static void enable_cursor() {
+  g_shadow_cursor_attrs[0].attr0 &= ~ATTR0_DISABLED;
+  g_shadow_cursor_attrs[1].attr0 &= ~ATTR0_DISABLED;
+  g_shadow_cursor_attrs[2].attr0 &= ~ATTR0_DISABLED;
+  g_shadow_cursor_attrs[3].attr0 &= ~ATTR0_DISABLED;
+}
+
+//static void disable_cursor() {
+//  g_shadow_cursor_attrs[0].attr0 |= ATTR0_DISABLED;
+//  g_shadow_cursor_attrs[1].attr0 |= ATTR0_DISABLED;
+//  g_shadow_cursor_attrs[2].attr0 |= ATTR0_DISABLED;
+//  g_shadow_cursor_attrs[3].attr0 |= ATTR0_DISABLED;
+//}
+
+// Should be called only during v-blank.
+static void draw_cursor() {
+  // sizeof obj attr / 4 == num u32s * 4 tiles.
+  CpuFastSet(g_shadow_cursor_attrs, OAM + 0, (sizeof (OBJATTR) / 4 * 4) | COPY32);
+}
+
+// -------------------------------------------------------------------------------------------------
+
 static void init_puzzle_bg() {
   // Use the largest 512x512 size for the puzzle bg.
   BGCTRL[PUZZLE_BG_IDX] = CHAR_BASE(CHAR_BASE_IDX) | SCREEN_BASE(MAP_BASE_IDX) | BG_SIZE_3;
@@ -289,13 +330,216 @@ static void init_puzzle_bg() {
 
 // -------------------------------------------------------------------------------------------------
 
+static void init_cursor_sprite(u32 sprite_idx) {
+  static const u32 cursor_sprites[32] = {
+    // Top left.
+    0x00111111,
+    0x00000001,
+    0x00000001,
+    0x00000001,
+    0x00000001,
+    0x00000001,
+    0x00000000,
+    0x00000000,
+
+    // Top right.
+    0x11111100,
+    0x10000000,
+    0x10000000,
+    0x10000000,
+    0x10000000,
+    0x10000000,
+    0x00000000,
+    0x00000000,
+
+    // Bot left.
+    0x00000000,
+    0x00000000,
+    0x00000001,
+    0x00000001,
+    0x00000001,
+    0x00000001,
+    0x00000001,
+    0x00111111,
+
+    // Bot right.
+    0x00000000,
+    0x00000000,
+    0x10000000,
+    0x10000000,
+    0x10000000,
+    0x10000000,
+    0x10000000,
+    0x11111100,
+  };
+
+  u32* cursor_sprite_ptr = ((u32*)OBJ_BASE_ADR) + (sprite_idx * 8);
+  for (u32 row_idx = 0; row_idx < 32; row_idx++) {
+    cursor_sprite_ptr[row_idx] = cursor_sprites[row_idx];
+  }
+
+  // Set a couple of colours in the first palette, black and red.
+  OBJ_COLORS[0] = RGB5(0, 0, 0);
+  OBJ_COLORS[1] = RGB5(31, 0, 0);
+
+  // Set the attributes for cursor sprite.
+  for (s32 tile_idx = 0; tile_idx < 4; tile_idx++) {
+    g_shadow_cursor_attrs[tile_idx].attr0 = OBJ_Y(0) | ATTR0_DISABLED | ATTR0_TYPE_NORMAL | ATTR0_COLOR_16 | ATTR0_SQUARE;
+    g_shadow_cursor_attrs[tile_idx].attr1 = OBJ_X(0) | ATTR1_SIZE_8;
+    g_shadow_cursor_attrs[tile_idx].attr2 = OBJ_CHAR(sprite_idx + tile_idx) | ATTR2_PRIORITY(0) | ATTR2_PALETTE(0);
+  }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+static void init_sprites() {
+  // Skip tile 0, it produces artefacts.
+  init_cursor_sprite(1);        // Cursor sprite at tiles 1..4.
+}
+
+// -------------------------------------------------------------------------------------------------
+
 static void init_gfx() {
   VBlankIntrWait();
 
-  // Set the video mode to 0, enable bg 1, enable objects.
-  SetMode(MODE_0 | BG1_ENABLE | OBJ_ENABLE);
+  // Set the video mode to 0, enable bg 1, enable sprites, 1d mapping for sprites.
+  SetMode(MODE_0 | BG1_ENABLE | OBJ_ENABLE | OBJ_1D_MAP);
 
   init_puzzle_bg();
+  init_sprites();
+}
+
+// -------------------------------------------------------------------------------------------------
+
+#define SCREEN_MAX_WIDTH 15
+#define SCREEN_MAX_HEIGHT 10
+
+struct CursorScroll {
+  // These are mutable state.
+  s32 cursor_x, cursor_y;
+  s32 cursor_screen_x, cursor_screen_y;
+  s32 puzzle_scroll_x, puzzle_scroll_y;                 // In pieces, not pixels.
+
+  // These are const.
+  s32 puzzle_max_scroll_x, puzzle_max_scroll_y;
+  s32 puzzle_width, puzzle_height;
+  s32 origin_x, origin_y;
+};
+
+static void init_cursor_scroll(struct CursorScroll* cursor_scroll,
+                        s32 width, s32 height, s32 origin_x, s32 origin_y) {
+  cursor_scroll->cursor_x = 0; cursor_scroll->cursor_y = 0;
+  cursor_scroll->cursor_screen_x = 0; cursor_scroll->cursor_screen_y = 0;
+  cursor_scroll->puzzle_scroll_x = 0; cursor_scroll->puzzle_scroll_y = 0;
+  cursor_scroll->puzzle_max_scroll_x = width - SCREEN_MAX_WIDTH;
+  cursor_scroll->puzzle_max_scroll_y = height - SCREEN_MAX_HEIGHT;
+  cursor_scroll->puzzle_width = width; cursor_scroll->puzzle_height = height;
+  cursor_scroll->origin_x = origin_x; cursor_scroll->origin_y = origin_y;
+}
+
+static void centre_puzzle(struct CursorScroll* cursor_scroll) {
+  // To put the origin in the centre, we want it at 15/2,10/2 == 7,5, but we need to keep it within
+  // the bounds.
+  s32 tmp_x = max(cursor_scroll->origin_x - 7, 0);
+  cursor_scroll->puzzle_scroll_x = min(tmp_x, cursor_scroll->puzzle_max_scroll_x);
+  s32 tmp_y = max(cursor_scroll->origin_y - 5, 0);
+  cursor_scroll->puzzle_scroll_y = min(tmp_y, cursor_scroll->puzzle_max_scroll_y);
+
+  // The cursor needs to be at the origin.
+  cursor_scroll->cursor_x = cursor_scroll->origin_x;
+  cursor_scroll->cursor_y = cursor_scroll->origin_y;
+  cursor_scroll->cursor_screen_x = cursor_scroll->origin_x - cursor_scroll->puzzle_scroll_x;
+  cursor_scroll->cursor_screen_y = cursor_scroll->origin_y - cursor_scroll->puzzle_scroll_y;
+}
+
+static void cursor_up(struct CursorScroll* cursor_scroll) {
+  if (cursor_scroll->cursor_y > 0) {
+    cursor_scroll->cursor_y--;
+    if (cursor_scroll->cursor_screen_y > 0) {
+      cursor_scroll->cursor_screen_y--;
+    } else {
+      cursor_scroll->puzzle_scroll_y--;
+    }
+  }
+}
+
+static void cursor_down(struct CursorScroll* cursor_scroll) {
+  if (cursor_scroll->cursor_y < cursor_scroll->puzzle_height - 1) {
+    cursor_scroll->cursor_y++;
+    if (cursor_scroll->cursor_screen_y < SCREEN_MAX_HEIGHT - 1) {
+      cursor_scroll->cursor_screen_y++;
+    } else {
+      cursor_scroll->puzzle_scroll_y++;
+    }
+  }
+}
+
+static void cursor_left(struct CursorScroll* cursor_scroll) {
+  if (cursor_scroll->cursor_x > 0) {
+    cursor_scroll->cursor_x--;
+    if (cursor_scroll->cursor_screen_x > 0) {
+      cursor_scroll->cursor_screen_x--;
+    } else {
+      cursor_scroll->puzzle_scroll_x--;
+    }
+  }
+}
+
+static void cursor_right(struct CursorScroll* cursor_scroll) {
+  if (cursor_scroll->cursor_x < cursor_scroll->puzzle_width - 1) {
+    cursor_scroll->cursor_x++;
+    if (cursor_scroll->cursor_screen_x < SCREEN_MAX_WIDTH - 1) {
+      cursor_scroll->cursor_screen_x++;
+    } else {
+      cursor_scroll->puzzle_scroll_x++;
+    }
+  }
+}
+
+static void update_screen_cursor_scroll(struct CursorScroll* cursor_scroll) {
+      REG_BG1HOFS = (u16)cursor_scroll->puzzle_scroll_x * 16;   // Pixels...
+      REG_BG1VOFS = (u16)cursor_scroll->puzzle_scroll_y * 16;
+      move_cursor((u16)cursor_scroll->cursor_screen_x,
+                  (u16)cursor_scroll->cursor_screen_y);
+      draw_cursor();
+}
+
+// -------------------------------------------------------------------------------------------------
+
+static void puzzle_loop(struct CursorScroll* cursor_scroll) {
+
+  centre_puzzle(cursor_scroll);
+
+  VBlankIntrWait();
+  enable_cursor();
+  update_screen_cursor_scroll(cursor_scroll);
+
+  while (1) {
+    scanKeys();
+    u16 keys_up = keysUp();
+
+    if (keys_up & KEY_START) {
+      break;
+    }
+
+    if (keys_up & KEY_UP) {
+      cursor_up(cursor_scroll);
+    }
+    if (keys_up & KEY_DOWN) {
+      cursor_down(cursor_scroll);
+    }
+    if (keys_up & KEY_LEFT) {
+      cursor_left(cursor_scroll);
+    }
+    if (keys_up & KEY_RIGHT) {
+      cursor_right(cursor_scroll);
+    }
+
+    VBlankIntrWait();
+    if (keys_up & (KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT)) {
+      update_screen_cursor_scroll(cursor_scroll);
+    }
+  }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -308,18 +552,9 @@ int main() {
   // Using timer 2 to seed the PRNG.  The count between start and when the user first presses 'A'.
   REG_TM2CNT_H |= TIMER_START;
 
+  // Load our backrounds and sprites into VRAM.
   init_gfx();
 
-  // Small = 1 screen = 15x10
-  // Medium = middle = 24x24
-  // Large = entire bg = 32x32
-  s32 width = 32;
-  s32 height = 32;
-
-  u16 scroll_x = 0;
-  u16 scroll_y = 0;
-
-  s32 initialised = 0;
   while (1) {
     VBlankIntrWait();
 
@@ -327,41 +562,31 @@ int main() {
     u16 keys_up = keysUp();
 
     if (keys_up & KEY_A) {
-      if (!initialised) {
-        initialised = 1;
-        srandom(REG_TM2CNT);
-        s32 origin_x;
-        s32 origin_y;
-        generate_puzzle(width, height, &origin_x, &origin_y);
-        VBlankIntrWait();
-        for (s32 y = 0; y < height; y++) {
-          for (s32 x = 0; x < width; x++) {
-            update_puzzle_board(x, y);
-          }
-        }
-      }
-    }
-
-    if (keys_up & KEY_START) {
       break;
     }
-
-    if (keys_up & KEY_UP) {
-      scroll_y -= 32;
-    }
-    if (keys_up & KEY_DOWN) {
-      scroll_y += 32;
-    }
-    if (keys_up & KEY_LEFT) {
-      scroll_x -= 32;
-    }
-    if (keys_up & KEY_RIGHT) {
-      scroll_x += 32;
-    }
-
-    REG_BG1HOFS = scroll_x;
-    REG_BG1VOFS = scroll_y;
   }
+
+  srandom(REG_TM2CNT);
+
+  // Small = 1 screen = 15x10
+  // Medium = middle = 24x24
+  // Large = entire bg = 32x32
+  s32 width = 32;
+  s32 height = 32;
+  s32 origin_x;
+  s32 origin_y;
+  generate_puzzle(width, height, &origin_x, &origin_y);
+
+  VBlankIntrWait();
+  for (s32 y = 0; y < height; y++) {
+    for (s32 x = 0; x < width; x++) {
+      update_puzzle_board(x, y);
+    }
+  }
+
+  struct CursorScroll cursor_scroll;
+  init_cursor_scroll(&cursor_scroll, width, height, origin_x, origin_y);
+  puzzle_loop(&cursor_scroll);
 
   Stop();
   return 0;
