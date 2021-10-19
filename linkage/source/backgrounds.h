@@ -7,4 +7,7 @@
 #define CHAR_BASE_IDX 0
 #define MAP_BASE_IDX 28
 
+#define LIT_PALETTE 0
+#define DULL_PALETTE 1
+
 void init_puzzle_bg();

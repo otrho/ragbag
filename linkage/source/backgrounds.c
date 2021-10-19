@@ -11,7 +11,13 @@ void init_puzzle_bg() {
 
   // Load the tile image data.
   CpuFastSet(piecesTiles, CHAR_BASE_ADR(CHAR_BASE_IDX), 512 | COPY32);
+
+  // Copy the glowy palette in and manually create our dull palette, which is all black except the
+  // last colour.  These correspond to DULL_PALETTE and LIT_PALETTE in backgrounds.h.
   CpuFastSet(piecesPal, BG_PALETTE, 8 | COPY32);
+  s32 black = 0;
+  CpuFastSet(&black, BG_PALETTE + 16, 8 | FILL | COPY32);
+  BG_PALETTE[31] = RGB5(0x1f, 0, 0x1f);
 
   // Make sure scroll is at the top left.
   REG_BG1HOFS = 0;

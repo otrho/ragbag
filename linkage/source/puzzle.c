@@ -240,8 +240,8 @@ static const u16 c_dirs_piece_map[16] = {
 #define NUM_Y_BG_TILES 32               // 32 8x8 tiles in bg quadrant row.
 #define NUM_Y_MAP_TILES 8               // 8 8x8 tiles in our tile set row.
 
-void update_puzzle_board(s32 x, s32 y) {
-  u16 piece_tiles_idx = c_dirs_piece_map[PUZZLE_PIECE_AT(x, y)->dirs];
+void update_puzzle_board(s32 x, s32 y, u16 pal_idx) {
+  u16 piece_tiles_idx = CHAR_PALETTE(pal_idx) | c_dirs_piece_map[PUZZLE_PIECE_AT(x, y)->dirs];
 
   // I'm hoping the compiler makes this much more efficient.  I should check the ASM.
   s32 scr_blk_idx = (y * 2) / NUM_Y_BG_TILES * 2 + (x * 2) / NUM_Y_BG_TILES;
