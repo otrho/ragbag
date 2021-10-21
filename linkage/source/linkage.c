@@ -115,6 +115,21 @@ static void update_screen_cursor_scroll(struct CursorScroll* cursor_scroll) {
 
 // -------------------------------------------------------------------------------------------------
 
+static void redraw_puzzle_screen(struct CursorScroll* cursor_scroll) {
+  for (s32 y = 0; y < SCREEN_MAX_HEIGHT; y++) {
+    for (s32 x = 0; x < SCREEN_MAX_WIDTH; x++) {
+      u16 palette =
+        puzzle_piece_is_lit(cursor_scroll->puzzle_scroll_x + x,
+                            cursor_scroll->puzzle_scroll_y + y) ? LIT_PALETTE : DULL_PALETTE;
+      update_puzzle_board(cursor_scroll->puzzle_scroll_x + x,
+                          cursor_scroll->puzzle_scroll_y + y,
+                          palette);
+    }
+  }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 static void init_tacho_timers() {
   // Timer0 counts from 731 to 1097 every frame, cascades into timer1.
   REG_TM0CNT_L = 0;
@@ -129,6 +144,8 @@ static void restart_tacho() {
   REG_TM1CNT_L = 0x84;
 }
 
+static s32 g_tacho_max = 0;
+
 static s32 read_tacho() {
   // Timer0 - 731 is 0..384 which is the full range of our tacho.
   s32 tacho_angle = REG_TM1CNT_H > 0 ? 384 : -(s32)(REG_TM0CNT_H - 713);
@@ -137,7 +154,8 @@ static s32 read_tacho() {
   REG_TM0CNT_L = 0;
   REG_TM1CNT_L = 0;
 
-  return tacho_angle;
+  g_tacho_max = max(g_tacho_max, tacho_angle);
+  return g_tacho_max;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -150,6 +168,8 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
   VBlankIntrWait();
   enable_cursor();
   update_screen_cursor_scroll(cursor_scroll);
+  render_lit_tiles(cursor_scroll->origin_x, cursor_scroll->origin_y);
+  redraw_puzzle_screen(cursor_scroll);
   draw_sprites();
 
   while (1) {
@@ -177,7 +197,6 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
 
     if (keys_up & KEY_A) {
       rotate_piece(cursor_scroll->cursor_x, cursor_scroll->cursor_y, +1);
-      update_puzzle_board(cursor_scroll->cursor_x, cursor_scroll->cursor_y, DULL_PALETTE);
     }
     if (keys_up & KEY_B) {
       rotate_piece(cursor_scroll->cursor_x, cursor_scroll->cursor_y, -1);
@@ -192,8 +211,9 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
       update_screen_cursor_scroll(cursor_scroll);
     }
     if (keys_up & (KEY_A | KEY_B)) {
-      update_puzzle_board(cursor_scroll->cursor_x, cursor_scroll->cursor_y, DULL_PALETTE);
+      render_lit_tiles(cursor_scroll->origin_x, cursor_scroll->origin_y);
     }
+    redraw_puzzle_screen(cursor_scroll);
     draw_sprites();
   }
 }
@@ -234,13 +254,6 @@ int main() {
   generate_puzzle(width, height, &origin_x, &origin_y);
 
   VBlankIntrWait();
-  for (s32 y = 0; y < height; y++) {
-    for (s32 x = 0; x < width; x++) {
-      update_puzzle_board(x, y, DULL_PALETTE);
-    }
-  }
-  update_puzzle_board(origin_x, origin_y, LIT_PALETTE);
-
   struct CursorScroll cursor_scroll;
   init_cursor_scroll(&cursor_scroll, width, height, origin_x, origin_y);
   puzzle_loop(&cursor_scroll);

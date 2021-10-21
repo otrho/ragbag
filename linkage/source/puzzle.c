@@ -3,6 +3,7 @@
 
 #include "puzzle.h"
 #include "backgrounds.h"
+#include "stack.h"
 
 // -------------------------------------------------------------------------------------------------
 // Puzzle board is always 32x32 (1024) pieces, even if the puzzle itself is smaller than that.
@@ -18,6 +19,7 @@ struct Piece {
 static struct Piece g_puzzle_pieces[TOTAL_PIECE_COUNT];
 
 #define PUZZLE_WIDTH 32
+#define PUZZLE_HEIGHT 32
 #define PUZZLE_PIECE_AT(x, y) (g_puzzle_pieces + (y) * PUZZLE_WIDTH + (x))
 
 enum Direction {
@@ -50,41 +52,20 @@ enum Direction opposite_dir(enum Direction dir) {
 // A 4KB buffer for tracking where the current ends of the expansion are.  Can push to the top, pop
 // off the top or bottom.
 
-static s32 g_links[TOTAL_PIECE_COUNT];
-static s32 g_links_top;
-static s32 g_links_bot;
-
-void links_init() {
-  g_links_top = 0;
-  g_links_bot = 0;
-}
-
-s32 links_empty() {
-  return g_links_top == g_links_bot;
-}
-
-void links_push(s32 x, s32 y) {
-  g_links[g_links_top++] = (x << 16) | y;
-}
-
-void links_pop_back() {
-  g_links_top--;
-}
-
-void links_pop_front() {
-  g_links_bot++;
-}
-
 void links_back(s32* x, s32* y) {
-  s32 val = g_links[g_links_top - 1];
+  s32 val = stack_top();
   *x = (val >> 16) & 0xffff;
   *y = val & 0xffff;
 }
 
 void links_front(s32* x, s32* y) {
-  s32 val = g_links[g_links_bot];
+  s32 val = stack_bot();
   *x = (val >> 16) & 0xffff;
   *y = val & 0xffff;
+}
+
+void links_push(s32 x, s32 y) {
+  stack_push((x << 16) | y);
 }
 
 // -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
@@ -126,7 +107,7 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
   *origin_y = (random() % (height - 4)) + 2;
 
   // Initialise the links stack.
-  links_init();
+  stack_init();
 
   // Push out in all 4 directions from the origin.
   s32 next_x = 0, next_y = 0;
@@ -140,7 +121,7 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
   links_push(*origin_x + 1, *origin_y + 0);
 
   // Generate the map.
-  while (!links_empty()) {
+  while (!stack_empty()) {
     // Grab the next link.  50/50 split as to whether we use the newest or oldest.
     s32 use_back = (random() % 2) == 0;
     s32 x, y;
@@ -179,9 +160,9 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
     if (!extended) {
       // We failed to extend this link; remove it from the list.
       if (use_back) {
-        links_pop_back();
+        stack_pop_top();
       } else {
-        links_pop_front();
+        stack_pop_bot();
       }
     }
   }
@@ -314,6 +295,64 @@ void rotate_piece(s32 x, s32 y, s32 dir) {
     piece->dirs = c_dirs_clockwise_map[piece->dirs];
   } else {
     piece->dirs = c_dirs_anticlockwise_map[piece->dirs];
+  }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+s32 puzzle_piece_is_lit(s32 x, s32 y) {
+  return (s32)(PUZZLE_PIECE_AT(x, y)->is_linked);
+}
+
+// -------------------------------------------------------------------------------------------------
+// This is dumb, optimise it later.
+
+#define PUSH_DIR(x, y, d) stack_push(((x) << 20) | (((y) & 0xfff) << 8) | d)
+
+void update_next_link() {
+  s32 value = stack_top();
+  stack_pop_top();
+  s32 x = ((value >> 20) & 0xfff), y = ((value >> 8) & 0xfff), from_d = opposite_dir(value & 0xff);
+
+  if (x >= PUZZLE_WIDTH || y >= PUZZLE_HEIGHT) {
+    return;
+  }
+
+  struct Piece* piece = PUZZLE_PIECE_AT(x, y);
+  if (piece->is_linked == 1 || (piece->dirs & from_d) == 0) {
+    return;
+  }
+  piece->is_linked = 1;
+
+  if (from_d != kNorth && (piece->dirs & kNorth) != 0) {
+    PUSH_DIR(x, y - 1, kNorth);
+  }
+  if (from_d != kEast && (piece->dirs & kEast) != 0) {
+    PUSH_DIR(x + 1, y, kEast);
+  }
+  if (from_d != kSouth && (piece->dirs & kSouth) != 0) {
+    PUSH_DIR(x, y + 1, kSouth);
+  }
+  if (from_d != kWest && (piece->dirs & kWest) != 0) {
+    PUSH_DIR(x - 1, y, kWest);
+  }
+}
+
+void render_lit_tiles(s32 origin_x, s32 origin_y) {
+  for (s32 idx = 0; idx < TOTAL_PIECE_COUNT; idx++) {
+    g_puzzle_pieces[idx].is_linked = 0;
+  }
+
+  PUZZLE_PIECE_AT(origin_x, origin_y)->is_linked = 1;
+
+  stack_init();
+  PUSH_DIR(origin_x + 0, origin_y - 1, kNorth);
+  PUSH_DIR(origin_x + 1, origin_y + 0, kEast);
+  PUSH_DIR(origin_x + 0, origin_y + 1, kSouth);
+  PUSH_DIR(origin_x - 1, origin_y + 0, kWest);
+
+  while (!stack_empty()) {
+    update_next_link();
   }
 }
 

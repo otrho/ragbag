@@ -169,9 +169,9 @@ static void init_tacho_sprite(u16 x, u16 y) {
     tacho_sprite_ptr[row_idx] = tacho_sprite[row_idx];
   }
 
-  // Set a couple of colours in the second palette, black and white.
+  // Set a couple of colours in the second palette, black and green.
   OBJ_COLORS[TACHO_PALETTE_BASE + 0] = RGB5(0, 0, 0);
-  OBJ_COLORS[TACHO_PALETTE_BASE + 1] = RGB5(31, 31, 31);
+  OBJ_COLORS[TACHO_PALETTE_BASE + 1] = RGB5(0, 31, 0);
 
   // Set the attributes for cursor sprite.
   g_shadow_attrs[TACHO_ATTR_BASE].attr0 = OBJ_Y(y) | ATTR0_ROTSCALE_DOUBLE | ATTR0_TYPE_NORMAL | ATTR0_COLOR_16 | ATTR0_SQUARE;
