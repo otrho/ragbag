@@ -169,6 +169,28 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
 }
 
 // -------------------------------------------------------------------------------------------------
+
+void randomise_puzzle(s32 width, s32 height) {
+  for (s32 y = 0; y < height; y++) {
+    for (s32 x = 0; x < width; x++) {
+      switch (random() % 4) {
+        case 3:
+        rotate_piece(x, y, -1);
+        break;
+
+        case 2:
+        rotate_piece(x, y, 1);
+        // fall through
+        case 1:
+        rotate_piece(x, y, 1);
+        case 0:
+        break;
+      }
+    }
+  }
+}
+
+// -------------------------------------------------------------------------------------------------
 // The tiles in the map are loaded from a 8x8 grid of tiles, representing a 4x4 grid of pieces.
 //
 //   0    2    4    6

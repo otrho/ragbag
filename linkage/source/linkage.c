@@ -252,6 +252,7 @@ int main() {
   s32 origin_x;
   s32 origin_y;
   generate_puzzle(width, height, &origin_x, &origin_y);
+  randomise_puzzle(width, height);
 
   VBlankIntrWait();
   struct CursorScroll cursor_scroll;
