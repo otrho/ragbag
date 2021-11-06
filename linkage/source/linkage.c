@@ -176,29 +176,29 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
     restart_tacho();
 
     scanKeys();
-    u16 keys_up = keysUp();
+    u16 keys_down = keysDown();
 
-    if (keys_up & KEY_START) {
+    if (keys_down & KEY_START) {
       break;
     }
 
-    if (keys_up & KEY_UP) {
+    if (keys_down & KEY_UP) {
       cursor_up(cursor_scroll);
     }
-    if (keys_up & KEY_DOWN) {
+    if (keys_down & KEY_DOWN) {
       cursor_down(cursor_scroll);
     }
-    if (keys_up & KEY_LEFT) {
+    if (keys_down & KEY_LEFT) {
       cursor_left(cursor_scroll);
     }
-    if (keys_up & KEY_RIGHT) {
+    if (keys_down & KEY_RIGHT) {
       cursor_right(cursor_scroll);
     }
 
-    if (keys_up & KEY_A) {
+    if (keys_down & KEY_A) {
       rotate_piece(cursor_scroll->cursor_x, cursor_scroll->cursor_y, +1);
     }
-    if (keys_up & KEY_B) {
+    if (keys_down & KEY_B) {
       rotate_piece(cursor_scroll->cursor_x, cursor_scroll->cursor_y, -1);
     }
 
@@ -207,10 +207,10 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
     // -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
 
     VBlankIntrWait();
-    if (keys_up & (KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT)) {
+    if (keys_down & (KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT)) {
       update_screen_cursor_scroll(cursor_scroll);
     }
-    if (keys_up & (KEY_A | KEY_B)) {
+    if (keys_down & (KEY_A | KEY_B)) {
       render_lit_tiles(cursor_scroll->origin_x, cursor_scroll->origin_y);
     }
     redraw_puzzle_screen(cursor_scroll);
