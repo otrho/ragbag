@@ -9,14 +9,14 @@
 
 // -------------------------------------------------------------------------------------------------
 
-static void init_gfx() {
+static void init_puzzle_gfx() {
   VBlankIntrWait();
 
   // Set the video mode to 0, enable bg 1, enable sprites, 1d mapping for sprites.
   SetMode(MODE_0 | BG1_ENABLE | OBJ_ENABLE | OBJ_1D_MAP);
 
   init_puzzle_bg();
-  init_sprites(224, 0);
+  init_puzzle_sprites(224, 0);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -170,7 +170,7 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
   update_screen_cursor_scroll(cursor_scroll);
   render_lit_tiles(cursor_scroll->origin_x, cursor_scroll->origin_y);
   redraw_puzzle_screen(cursor_scroll);
-  draw_sprites();
+  draw_puzzle_sprites();
 
   while (1) {
     restart_tacho();
@@ -214,23 +214,45 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
       render_lit_tiles(cursor_scroll->origin_x, cursor_scroll->origin_y);
     }
     redraw_puzzle_screen(cursor_scroll);
-    draw_sprites();
+    draw_puzzle_sprites();
   }
 }
 
 // -------------------------------------------------------------------------------------------------
 
-int main() {
-  irqInit();
-  irqEnable(IRQ_VBLANK);
-  REG_IME = 1;
+static void run_puzzle(s32 width, s32 height) {
+  s32 origin_x;
+  s32 origin_y;
+  generate_puzzle(width, height, &origin_x, &origin_y);
+  randomise_puzzle(width, height);
 
-  // Using timer 2 to seed the PRNG.  The count between start and when the user first presses 'A'.
-  REG_TM2CNT_H |= TIMER_START;
+  VBlankIntrWait();
+  struct CursorScroll cursor_scroll;
+  init_cursor_scroll(&cursor_scroll, width, height, origin_x, origin_y);
+  puzzle_loop(&cursor_scroll);
+}
 
-  // Load our backrounds and sprites into VRAM.
-  init_gfx();
+// -------------------------------------------------------------------------------------------------
 
+static void show_logo() {
+}
+
+// -------------------------------------------------------------------------------------------------
+
+static void show_title() {
+  // Put the title at row 6.  It's 3 tiles high.
+  generate_title(6);
+
+  // Draw it.
+  VBlankIntrWait();
+  for (s32 y = 0; y < 10; y++) {
+    for (s32 x = 0; x < 15; x++) {
+      u16 pal_idx = (y >= 6 && y < 9) ? LIT_PALETTE : DULL_PALETTE;
+      update_puzzle_board(x, y, pal_idx);
+    }
+  }
+
+  // Wait for 'A' button.
   while (1) {
     VBlankIntrWait();
 
@@ -241,23 +263,29 @@ int main() {
       break;
     }
   }
+}
 
+// -------------------------------------------------------------------------------------------------
+
+int main() {
+  irqInit();
+  irqEnable(IRQ_VBLANK);
+  REG_IME = 1;
+
+  show_logo();
+
+  // The title needs the puzzle tiles.
+  init_puzzle_gfx();
+
+  // Using timer 2 to seed the PRNG.  The count between start and when the user first presses 'A'
+  // while showing the title screen.
+  REG_TM2CNT_H |= TIMER_START;
+  show_title();
   srandom(REG_TM2CNT);
 
-  // Small = 1 screen = 15x10
-  // Medium = middle = 24x24
-  // Large = entire bg = 32x32
-  s32 width = 32;
-  s32 height = 32;
-  s32 origin_x;
-  s32 origin_y;
-  generate_puzzle(width, height, &origin_x, &origin_y);
-  randomise_puzzle(width, height);
-
-  VBlankIntrWait();
-  struct CursorScroll cursor_scroll;
-  init_cursor_scroll(&cursor_scroll, width, height, origin_x, origin_y);
-  puzzle_loop(&cursor_scroll);
+  // Small puzzle...
+  s32 width = 15, height = 10;
+  run_puzzle(width, height);
 
   Stop();
   return 0;

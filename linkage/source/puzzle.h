@@ -2,6 +2,8 @@
 
 #include <gba_types.h>
 
+void generate_title();
+
 void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y);
 void randomise_puzzle(s32 width, s32 height);
 

@@ -32,7 +32,7 @@ static OBJAFFINE* g_shadow_affines = (OBJAFFINE*)g_shadow_attrs;
 // -------------------------------------------------------------------------------------------------
 // Should be called only during v-blank.
 
-void draw_sprites() {
+void draw_puzzle_sprites() {
   CpuFastSet(g_shadow_attrs, OAM, (sizeof (OBJATTR) / 4 * TOTAL_SPRITES) | COPY32);
 }
 
@@ -187,7 +187,7 @@ static void init_tacho_sprite(u16 x, u16 y) {
 
 // -------------------------------------------------------------------------------------------------
 
-void init_sprites(u16 tacho_x, u16 tacho_y) {
+void init_puzzle_sprites(u16 tacho_x, u16 tacho_y) {
   init_cursor_sprite();
   init_tacho_sprite(tacho_x, tacho_y);
 }

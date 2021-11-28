@@ -191,6 +191,52 @@ void randomise_puzzle(s32 width, s32 height) {
 }
 
 // -------------------------------------------------------------------------------------------------
+// Maybe this doesn't belong here but all the code for manipulating the puzzle pieces is here to
+// it's easiest to just re-use that.
+
+#define T____ 0
+#define TN___ kNorth
+#define T_E__ kEast
+#define T__S_ kSouth
+#define T___W kWest
+#define TNE__ (kNorth | kEast)
+#define TNES_ (kNorth | kEast | kSouth)
+#define TNE_W (kNorth | kEast | kWest)
+#define TN_S_ (kNorth | kSouth)
+#define TN_SW (kNorth | kSouth | kWest)
+#define TN__W (kNorth | kWest)
+#define T_ES_ (kEast | kSouth)
+#define T__SW (kSouth | kWest)
+
+static const u16 c_linkage_title_tiles[15 * 3] = {
+  // L           I       N                     K                     A              G              E
+  T__S_, T____,  T__S_,  T_ES_, T__SW, T__S_,  T__S_, T_ES_, T___W,  T_E__, T__SW,  T_ES_, T__SW,  T_ES_, T__SW,
+  TN_S_, T____,  TN_S_,  TN_S_, TN_S_, TN_S_,  TNES_, TNE_W, T__SW,  T_ES_, TN_SW,  TNE__, TN_SW,  TNES_, TN__W,
+  TNE__, T___W,  TN___,  TN___, TNE__, TN__W,  TN___, T____, TN___,  TNE__, TN__W,  T_E__, TN__W,  TNE__, T___W,
+};
+
+void generate_title(s32 title_row) {
+  // Clear the puzzle.
+  s32 null = 0;
+  CpuFastSet(&null, g_puzzle_pieces, (sizeof (struct Piece) * TOTAL_PIECE_COUNT / 4) | FILL | COPY32);
+
+  // Randomise an entire screen.
+  for (s32 y = 0; y < 10; y++) {
+    for (s32 x = 0; x < 15; x++) {
+      s32 r = random();
+      PUZZLE_PIECE_AT(x, y)->dirs = (r & 0xf) | (1 << ((r >> 4) & 0x3));
+    }
+  }
+
+  // Spell the `Linkage` tiles.
+  for (s32 y = 0; y < 3; y++) {
+    for (s32 x = 0; x < 15; x++) {
+      PUZZLE_PIECE_AT(x, y + title_row)->dirs = c_linkage_title_tiles[y * 15 + x];
+    }
+  }
+}
+
+// -------------------------------------------------------------------------------------------------
 // The tiles in the map are loaded from a 8x8 grid of tiles, representing a 4x4 grid of pieces.
 //
 //   0    2    4    6
