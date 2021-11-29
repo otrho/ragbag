@@ -11,3 +11,4 @@
 #define DULL_PALETTE 1
 
 void init_puzzle_bg();
+void palette_flash_screen(s32 total_frames);

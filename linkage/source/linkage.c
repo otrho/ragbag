@@ -215,6 +215,10 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
     }
     redraw_puzzle_screen(cursor_scroll);
     draw_puzzle_sprites();
+
+    if (keys_down & KEY_SELECT) {
+      palette_flash_screen(20);
+    }
   }
 }
 

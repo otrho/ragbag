@@ -25,3 +25,40 @@ void init_puzzle_bg() {
 }
 
 // -------------------------------------------------------------------------------------------------
+
+void palette_flash_screen(s32 total_frames) {
+  // We have two palettes, 16 entries of 16 RGB values each.  Make a copy first.
+  u16 orig_palettes[16 * 2];
+  CpuFastSet(BG_PALETTE, orig_palettes, 16 | COPY32);
+
+  s32 ramp_frames = total_frames / 2;
+
+  // For each entry we scale up and back again in total_frames frames.  Each entry is adjusted by a
+  // fixed amount each frame.  We can precalculate the adjustment for each RGB value in a LUT.
+  u16 adjustments[16 * 2];
+  for (s32 idx = 0; idx < 16 * 2; idx++) {
+    u16 o = orig_palettes[idx];
+    u16 rd = (0x1f - ((o >> 10) & 0x1f)) / ramp_frames;
+    u16 gr = (0x1f - ((o >>  5) & 0x1f)) / ramp_frames;
+    u16 bl = (0x1f - ((o >>  0) & 0x1f)) / ramp_frames;
+    adjustments[idx] = (rd << 10) | (gr << 5) | bl;
+  }
+
+  for (s32 frame = 0; frame < ramp_frames; frame++) {
+    VBlankIntrWait();
+    for (s32 idx = 0; idx < 16 * 2; idx++) {
+      BG_PALETTE[idx] += adjustments[idx];
+    }
+  }
+  for (s32 frame = 0; frame < ramp_frames; frame++) {
+    VBlankIntrWait();
+    for (s32 idx = 0; idx < 16 * 2; idx++) {
+      BG_PALETTE[idx] -= adjustments[idx];
+    }
+  }
+
+  // Restore the original palette exactly.
+  CpuFastSet(orig_palettes, BG_PALETTE, 16 | COPY32);
+}
+
+// -------------------------------------------------------------------------------------------------
