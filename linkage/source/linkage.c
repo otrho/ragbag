@@ -130,39 +130,7 @@ static void redraw_puzzle_screen(struct CursorScroll* cursor_scroll) {
 
 // -------------------------------------------------------------------------------------------------
 
-static void init_tacho_timers() {
-  // Timer0 counts from 731 to 1097 every frame, cascades into timer1.
-  REG_TM0CNT_L = 0;
-  REG_TM0CNT_H = 731;
-  REG_TM1CNT_L = 0;
-  REG_TM1CNT_H = 0;
-}
-
-static void restart_tacho() {
-  // Enable both timers, timer0 @ freq/256, timer1 cascading.
-  REG_TM0CNT_L = 0x82;
-  REG_TM1CNT_L = 0x84;
-}
-
-static s32 g_tacho_max = 0;
-
-static s32 read_tacho() {
-  // Timer0 - 731 is 0..384 which is the full range of our tacho.
-  s32 tacho_angle = REG_TM1CNT_H > 0 ? 384 : -(s32)(REG_TM0CNT_H - 713);
-
-  // Reset timers.
-  REG_TM0CNT_L = 0;
-  REG_TM1CNT_L = 0;
-
-  g_tacho_max = max(g_tacho_max, tacho_angle);
-  return g_tacho_max;
-}
-
-// -------------------------------------------------------------------------------------------------
-
 static void puzzle_loop(struct CursorScroll* cursor_scroll) {
-  init_tacho_timers();
-
   centre_puzzle(cursor_scroll);
 
   VBlankIntrWait();
@@ -173,8 +141,6 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
   draw_puzzle_sprites();
 
   while (1) {
-    restart_tacho();
-
     scanKeys();
     u16 keys_down = keysDown();
 
@@ -201,8 +167,6 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
     if (keys_down & KEY_B) {
       rotate_piece(cursor_scroll->cursor_x, cursor_scroll->cursor_y, -1);
     }
-
-    rotate_tacho(read_tacho());
 
     // -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -   -
 

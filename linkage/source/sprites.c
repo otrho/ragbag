@@ -6,28 +6,21 @@
 // REMEMBER: Maximum 128 sprites, only 32 of them are affine.  Every 4 attribs structs has 1 affine
 // struct interspersed through them.
 
-// We have 4 cursor sprites and 1 tacho sprite.
-#define TOTAL_SPRITES 8         // Keep it to a multiple of 4.
+// We have 4 cursor sprites.
+#define TOTAL_SPRITES 4
 
 // Attributes indices.
 #define CURSOR_ATTR_BASE 0
-#define TACHO_ATTR_BASE 4
-
-// Affine indices.
-#define TACHO_AFFINE_BASE 0
 
 // Palette indices.  16 colours in a palette.
 #define CURSOR_PALETTE_IDX 0
 #define CURSOR_PALETTE_BASE (CURSOR_PALETTE_IDX * 16)
-#define TACHO_PALETTE_IDX 1
-#define TACHO_PALETTE_BASE (TACHO_PALETTE_IDX * 16)
 
 // Pixel data indices.  We skip the first one at 0 since it seems to cause display artefacts.
 #define CURSOR_DATA_BASE 1
-#define TACHO_DATA_BASE 5
 
 static OBJATTR g_shadow_attrs[TOTAL_SPRITES];
-static OBJAFFINE* g_shadow_affines = (OBJAFFINE*)g_shadow_attrs;
+//static OBJAFFINE* g_shadow_affines = (OBJAFFINE*)g_shadow_attrs;
 
 // -------------------------------------------------------------------------------------------------
 // Should be called only during v-blank.
@@ -71,21 +64,6 @@ void disable_cursor() {
   g_shadow_attrs[CURSOR_ATTR_BASE + 1].attr0 |= ATTR0_DISABLED;
   g_shadow_attrs[CURSOR_ATTR_BASE + 2].attr0 |= ATTR0_DISABLED;
   g_shadow_attrs[CURSOR_ATTR_BASE + 3].attr0 |= ATTR0_DISABLED;
-}
-
-// -------------------------------------------------------------------------------------------------
-// Tacho manipulation.
-
-extern s16 trig_lut[512];
-
-#define SIN(a) ((trig_lut[(a) & 0x1ff]) >> 4)
-#define COS(a) ((trig_lut[((a) + 128) & 0x1ff]) >> 4)
-
-void rotate_tacho(s16 angle) {
-  g_shadow_affines[TACHO_AFFINE_BASE].pa = COS(angle);
-  g_shadow_affines[TACHO_AFFINE_BASE].pb = -SIN(angle);
-  g_shadow_affines[TACHO_AFFINE_BASE].pc = SIN(angle);
-  g_shadow_affines[TACHO_AFFINE_BASE].pd = COS(angle);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -152,44 +130,8 @@ static void init_cursor_sprite() {
 
 // -------------------------------------------------------------------------------------------------
 
-static void init_tacho_sprite(u16 x, u16 y) {
-  static const u32 tacho_sprite[8] = {
-    0x00000000,
-    0x00000000,
-    0x00000000,
-    0x00000000,
-    0x00001000,
-    0x00000100,
-    0x00000001,
-    0x00000011,
-  };
-
-  u32* tacho_sprite_ptr = ((u32*)OBJ_BASE_ADR) + (TACHO_DATA_BASE * 8);
-  for (u32 row_idx = 0; row_idx < 8; row_idx++) {
-    tacho_sprite_ptr[row_idx] = tacho_sprite[row_idx];
-  }
-
-  // Set a couple of colours in the second palette, black and green.
-  OBJ_COLORS[TACHO_PALETTE_BASE + 0] = RGB5(0, 0, 0);
-  OBJ_COLORS[TACHO_PALETTE_BASE + 1] = RGB5(0, 31, 0);
-
-  // Set the attributes for cursor sprite.
-  g_shadow_attrs[TACHO_ATTR_BASE].attr0 = OBJ_Y(y) | ATTR0_ROTSCALE_DOUBLE | ATTR0_TYPE_NORMAL | ATTR0_COLOR_16 | ATTR0_SQUARE;
-  g_shadow_attrs[TACHO_ATTR_BASE].attr1 = OBJ_X(x) | ATTR1_ROTDATA(TACHO_AFFINE_BASE) | ATTR1_SIZE_8;
-  g_shadow_attrs[TACHO_ATTR_BASE].attr2 = OBJ_CHAR(TACHO_DATA_BASE) | ATTR2_PRIORITY(0) | ATTR2_PALETTE(TACHO_PALETTE_IDX);
-
-  // Set identity for affine transform.
-  g_shadow_affines[TACHO_AFFINE_BASE].pa = 0x100;
-  g_shadow_affines[TACHO_AFFINE_BASE].pb = 0x000;
-  g_shadow_affines[TACHO_AFFINE_BASE].pc = 0x000;
-  g_shadow_affines[TACHO_AFFINE_BASE].pd = 0x100;
-}
-
-// -------------------------------------------------------------------------------------------------
-
-void init_puzzle_sprites(u16 tacho_x, u16 tacho_y) {
+void init_puzzle_sprites() {
   init_cursor_sprite();
-  init_tacho_sprite(tacho_x, tacho_y);
 }
 
 // -------------------------------------------------------------------------------------------------
