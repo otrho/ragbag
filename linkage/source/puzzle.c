@@ -1,9 +1,9 @@
-#include <stdlib.h>
 #include <gba.h>
 
 #include "puzzle.h"
 #include "backgrounds.h"
 #include "stack.h"
+#include "prng.h"
 
 // -------------------------------------------------------------------------------------------------
 // Puzzle board is always 32x32 (1024) pieces, even if the puzzle itself is smaller than that.
@@ -103,8 +103,8 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
   CpuFastSet(&null, g_puzzle_pieces, (sizeof (struct Piece) * TOTAL_PIECE_COUNT / 4) | FILL | COPY32);
 
   // Set the origin to somewhere random, at least 2 pieces from the edge.
-  *origin_x = (random() % (width - 4)) + 2;
-  *origin_y = (random() % (height - 4)) + 2;
+  *origin_x = (s32)((prng() % (width - 4)) + 2);
+  *origin_y = (s32)((prng() % (height - 4)) + 2);
 
   // Initialise the links stack.
   stack_init();
@@ -123,7 +123,7 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
   // Generate the map.
   while (!stack_empty()) {
     // Grab the next link.  50/50 split as to whether we use the newest or oldest.
-    s32 use_back = (random() % 2) == 0;
+    u16 use_back = (prng() % 2) == 0;
     s32 x, y;
     if (use_back) {
       links_back(&x, &y);
@@ -139,7 +139,7 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
     if (num_links(PUZZLE_PIECE_AT(x, y)->dirs) < 3) {
       // Keep looping until we find extend successfully.
       for (s32 attempted_dirs = 0; num_links(attempted_dirs) < 4; ) {
-        enum Direction next_dir = (kNorth << (random() % 4));
+        enum Direction next_dir = (kNorth << (prng() % 4));
         if ((attempted_dirs & next_dir) != 0) {
           // We've already tried this way.  Try again.
           continue;
@@ -173,7 +173,7 @@ void generate_puzzle(s32 width, s32 height, s32* origin_x, s32* origin_y) {
 void randomise_puzzle(s32 width, s32 height) {
   for (s32 y = 0; y < height; y++) {
     for (s32 x = 0; x < width; x++) {
-      switch (random() % 4) {
+      switch (prng() % 4) {
         case 3:
         rotate_piece(x, y, -1);
         break;
@@ -223,7 +223,7 @@ void generate_title(s32 title_row) {
   // Randomise an entire screen.
   for (s32 y = 0; y < 10; y++) {
     for (s32 x = 0; x < 15; x++) {
-      s32 r = random();
+      u16 r = prng();
       PUZZLE_PIECE_AT(x, y)->dirs = (r & 0xf) | (1 << ((r >> 4) & 0x3));
     }
   }

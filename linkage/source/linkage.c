@@ -1,11 +1,10 @@
-#include <stdlib.h>
-
 #include <gba.h>
 
 #include "backgrounds.h"
 #include "puzzle.h"
 #include "sprites.h"
 #include "util.h"
+#include "prng.h"
 
 // -------------------------------------------------------------------------------------------------
 
@@ -207,7 +206,7 @@ static void show_logo() {
 
 // -------------------------------------------------------------------------------------------------
 
-static void show_title() {
+static s32 show_title() {
   // Put the title at row 6.  It's 3 tiles high.
   generate_title(6);
 
@@ -220,6 +219,8 @@ static void show_title() {
     }
   }
 
+  s32 count = 35;
+
   // Wait for 'A' button.
   while (1) {
     VBlankIntrWait();
@@ -230,7 +231,11 @@ static void show_title() {
     if (keys_up & KEY_A) {
       break;
     }
+
+    count++;
   }
+
+  return count;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -244,12 +249,8 @@ int main() {
 
   // The title needs the puzzle tiles.
   init_puzzle_gfx();
-
-  // Using timer 2 to seed the PRNG.  The count between start and when the user first presses 'A'
-  // while showing the title screen.
-  REG_TM2CNT_H |= TIMER_START;
-  show_title();
-  srandom(REG_TM2CNT);
+  s32 seed = show_title();
+  prng_seed((u16)(seed | (seed << 8)));
 
   // Small puzzle...
   s32 width = 15, height = 10;
