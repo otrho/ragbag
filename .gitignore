@@ -6,6 +6,9 @@
 *.elf.map
 *.gba
 
+*.smdh
+*.3dsx
+
 *.sav
 
 build/
