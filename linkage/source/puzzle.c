@@ -17,6 +17,7 @@ struct Piece {
 };
 
 static struct Piece g_puzzle_pieces[TOTAL_PIECE_COUNT];
+static s32 g_total_solved = 0;
 
 #define PUZZLE_WIDTH 32
 #define PUZZLE_HEIGHT 32
@@ -188,6 +189,15 @@ void randomise_puzzle(s32 width, s32 height) {
       }
     }
   }
+
+  g_total_solved = 0;
+  for (s32 y = 0; y < height; y++) {
+    for (s32 x = 0; x < width; x++) {
+      if (PUZZLE_PIECE_AT(x, y)->rot == 0) {
+        g_total_solved++;
+      }
+    }
+  }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -352,6 +362,8 @@ void rotate_piece(s32 x, s32 y, s32 dir) {
     return;
   }
 
+  u8 old_rot = piece->rot;
+
   if (piece->dirs == (kNorth | kSouth) || piece->dirs == (kEast | kWest)) {
     // Straight line is symmetrical and can toggle rotation between 0 and 1.
     piece->rot ^= 1;
@@ -359,11 +371,25 @@ void rotate_piece(s32 x, s32 y, s32 dir) {
     piece->rot = (piece->rot + dir) & 3;
   }
 
+  if (piece->rot == 0) {
+    // We rotated into the solved position.
+    g_total_solved++;
+  } else if (old_rot == 0) {
+    // We rotated it away from the solved position.
+    g_total_solved--;
+  }
+
   if (dir == 1) {
     piece->dirs = c_dirs_clockwise_map[piece->dirs];
   } else {
     piece->dirs = c_dirs_anticlockwise_map[piece->dirs];
   }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+s32 total_solved(s32 width, s32 height) {
+  return g_total_solved;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -422,6 +448,21 @@ void render_lit_tiles(s32 origin_x, s32 origin_y) {
   while (!stack_empty()) {
     update_next_link();
   }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+void debug_cheat(s32 width, s32 height) {
+  for (s32 y = 0; y < height; y++) {
+    for (s32 x = 0; x < width; x++) {
+      struct Piece* piece = PUZZLE_PIECE_AT(x, y);
+      while (piece->rot != 0) {
+        rotate_piece(x, y, 1);
+      }
+    }
+  }
+
+  rotate_piece(0, 0, 1);
 }
 
 // -------------------------------------------------------------------------------------------------

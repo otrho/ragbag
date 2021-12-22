@@ -128,8 +128,9 @@ static void redraw_puzzle_screen(struct CursorScroll* cursor_scroll) {
 }
 
 // -------------------------------------------------------------------------------------------------
+// Return whether the puzzle was solved.
 
-static void puzzle_loop(struct CursorScroll* cursor_scroll) {
+static s32 puzzle_loop(struct CursorScroll* cursor_scroll) {
   centre_puzzle(cursor_scroll);
 
   VBlankIntrWait();
@@ -139,13 +140,22 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
   redraw_puzzle_screen(cursor_scroll);
   draw_puzzle_sprites();
 
-  while (1) {
+  s32 total_pieces = cursor_scroll->puzzle_width * cursor_scroll->puzzle_height;
+
+  s32 success = 0;
+  for (s32 keep_going = 1; keep_going; ) {
     scanKeys();
     u16 keys_down = keysDown();
 
     if (keys_down & KEY_START) {
-      break;
+      // Abort.
+      keep_going = 0;
     }
+
+    /* if (keys_down & KEY_SELECT) {
+      debug_cheat(cursor_scroll->puzzle_width, cursor_scroll->puzzle_height);
+      render_lit_tiles(cursor_scroll->origin_x, cursor_scroll->origin_y);
+    } */
 
     if (keys_down & KEY_UP) {
       cursor_up(cursor_scroll);
@@ -175,19 +185,24 @@ static void puzzle_loop(struct CursorScroll* cursor_scroll) {
     }
     if (keys_down & (KEY_A | KEY_B)) {
       render_lit_tiles(cursor_scroll->origin_x, cursor_scroll->origin_y);
+      if (total_solved(cursor_scroll->puzzle_width, cursor_scroll->puzzle_height) == total_pieces) {
+        // Solved.
+        success = 1;
+        keep_going = 0;
+      }
     }
     redraw_puzzle_screen(cursor_scroll);
     draw_puzzle_sprites();
-
-    if (keys_down & KEY_SELECT) {
-      palette_flash_screen(20);
-    }
   }
+
+  disable_cursor();
+  return success;
 }
 
 // -------------------------------------------------------------------------------------------------
+// Return whether the puzzle was solved.
 
-static void run_puzzle(s32 width, s32 height) {
+static s32 run_puzzle(s32 width, s32 height) {
   s32 origin_x;
   s32 origin_y;
   generate_puzzle(width, height, &origin_x, &origin_y);
@@ -196,12 +211,32 @@ static void run_puzzle(s32 width, s32 height) {
   VBlankIntrWait();
   struct CursorScroll cursor_scroll;
   init_cursor_scroll(&cursor_scroll, width, height, origin_x, origin_y);
-  puzzle_loop(&cursor_scroll);
+  return puzzle_loop(&cursor_scroll);
 }
 
 // -------------------------------------------------------------------------------------------------
 
 static void show_logo() {
+}
+
+// -------------------------------------------------------------------------------------------------
+
+static s32 wait_for_key(s32 pause_frame_count, s32 timeout_frame_count) {
+  s32 count = 0;
+
+  while (1) {
+    VBlankIntrWait();
+
+    scanKeys();
+    u16 keys_down = keysDown();
+
+    if ((count > pause_frame_count && keys_down != 0) ||
+        (timeout_frame_count != 0 && count > pause_frame_count + timeout_frame_count)) {
+      return count;
+    }
+
+    count++;
+  }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -218,24 +253,10 @@ static s32 show_title() {
       update_puzzle_board(x, y, pal_idx);
     }
   }
+  draw_puzzle_sprites();
 
-  s32 count = 35;
-
-  // Wait for 'A' button.
-  while (1) {
-    VBlankIntrWait();
-
-    scanKeys();
-    u16 keys_up = keysUp();
-
-    if (keys_up & KEY_A) {
-      break;
-    }
-
-    count++;
-  }
-
-  return count;
+  // Wait for button press, no timeout.
+  return wait_for_key(60, 0);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -249,14 +270,19 @@ int main() {
 
   // The title needs the puzzle tiles.
   init_puzzle_gfx();
-  s32 seed = show_title();
-  prng_seed((u16)(seed | (seed << 8)));
 
   // Small puzzle...
   s32 width = 15, height = 10;
-  run_puzzle(width, height);
+  while (1) {
+    s32 seed = show_title();
+    prng_seed((u16)(seed | (seed << 8)));
 
-  Stop();
+    if (run_puzzle(width, height)) {
+      palette_flash_screen(20);
+      wait_for_key(30, 90);
+    }
+  }
+
   return 0;
 }
 
