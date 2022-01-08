@@ -6,18 +6,23 @@
 // REMEMBER: Maximum 128 sprites, only 32 of them are affine.  Every 4 attribs structs has 1 affine
 // struct interspersed through them.
 
-// We have 4 cursor sprites.
-#define TOTAL_SPRITES 4
+// We have 4 cursor sprites and 1 spark sprite.
+#define TOTAL_SPRITES 5
 
 // Attributes indices.
 #define CURSOR_ATTR_BASE 0
+#define SPARK_ATTR_BASE 4
 
 // Palette indices.  16 colours in a palette.
 #define CURSOR_PALETTE_IDX 0
+#define SPARK_PALETTE_IDX 1
+
 #define CURSOR_PALETTE_BASE (CURSOR_PALETTE_IDX * 16)
+#define SPARK_PALETTE_BASE (SPARK_PALETTE_IDX * 16)
 
 // Pixel data indices.  We skip the first one at 0 since it seems to cause display artefacts.
 #define CURSOR_DATA_BASE 1
+#define SPARK_DATA_BASE 5
 
 static OBJATTR g_shadow_attrs[TOTAL_SPRITES];
 //static OBJAFFINE* g_shadow_affines = (OBJAFFINE*)g_shadow_attrs;
@@ -130,8 +135,44 @@ static void init_cursor_sprite() {
 
 // -------------------------------------------------------------------------------------------------
 
+static void init_spark_sprite() {
+  static const u32 spark_sprite[8] = {
+    0x00000000,
+    0x00555500,
+    0x05566550,
+    0x05677650,
+    0x05677650,
+    0x05566550,
+    0x00555500,
+    0x00000000,
+  };
+
+  u32* spark_sprite_ptr = ((u32*)OBJ_BASE_ADR) + (SPARK_DATA_BASE * 8);
+  for (u32 row_idx = 0; row_idx < 8; row_idx++) {
+    spark_sprite_ptr[row_idx] = spark_sprite[row_idx];
+  }
+
+  // Set colours in the second palette.
+  OBJ_COLORS[SPARK_PALETTE_BASE + 0] = RGB5(0, 0, 0);
+  OBJ_COLORS[SPARK_PALETTE_BASE + 1] = RGB5(0, 0, 0);
+  OBJ_COLORS[SPARK_PALETTE_BASE + 2] = RGB5(0, 0, 0);
+  OBJ_COLORS[SPARK_PALETTE_BASE + 3] = RGB5(0, 0, 0);
+  OBJ_COLORS[SPARK_PALETTE_BASE + 4] = RGB5(0, 0, 0);
+  OBJ_COLORS[SPARK_PALETTE_BASE + 5] = RGB5(20, 20, 20);
+  OBJ_COLORS[SPARK_PALETTE_BASE + 6] = RGB5(28, 28, 28);
+  OBJ_COLORS[SPARK_PALETTE_BASE + 7] = RGB5(31, 31, 31);
+
+  // Set the attributes for spark sprite.
+  g_shadow_attrs[SPARK_ATTR_BASE].attr0 = OBJ_Y(0) | ATTR0_DISABLED | ATTR0_TYPE_NORMAL | ATTR0_COLOR_16 | ATTR0_SQUARE;
+  g_shadow_attrs[SPARK_ATTR_BASE].attr1 = OBJ_X(0) | ATTR1_SIZE_8;
+  g_shadow_attrs[SPARK_ATTR_BASE].attr2 = OBJ_CHAR(SPARK_DATA_BASE) | ATTR2_PRIORITY(0) | ATTR2_PALETTE(SPARK_PALETTE_IDX);
+}
+
+// -------------------------------------------------------------------------------------------------
+
 void init_puzzle_sprites() {
   init_cursor_sprite();
+  init_spark_sprite();
 }
 
 // -------------------------------------------------------------------------------------------------
