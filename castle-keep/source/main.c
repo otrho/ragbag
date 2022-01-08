@@ -5,24 +5,24 @@
 
 int main(int argc, char* argv[])
 {
-	gfxInitDefault();
-	consoleInit(GFX_TOP, NULL);
+  gfxInitDefault();
+  consoleInit(GFX_TOP, NULL);
 
-	printf("Hello, world!\n");
+  printf("Hello, world!\n");
 
-	// Main loop
-	while (aptMainLoop())
-	{
-		gspWaitForVBlank();
-		gfxSwapBuffers();
-		hidScanInput();
+  // Main loop
+  while (aptMainLoop())
+  {
+    gspWaitForVBlank();
+    gfxSwapBuffers();
+    hidScanInput();
 
-		// Your code goes here
-		u32 kDown = hidKeysDown();
-		if (kDown & KEY_START)
-			break; // break in order to return to hbmenu
-	}
+    // Your code goes here
+    u32 kDown = hidKeysDown();
+    if (kDown & KEY_START)
+      break; // break in order to return to hbmenu
+  }
 
-	gfxExit();
-	return 0;
+  gfxExit();
+  return 0;
 }
